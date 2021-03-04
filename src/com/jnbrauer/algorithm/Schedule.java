@@ -24,6 +24,10 @@ public class Schedule {
         randomize(new Random());
     }
 
+    /**
+     * Schedule the tasks in this schedule at random times
+     * @param random
+     */
     public void randomize(Random random) {
         for (int i = 0; i < tasks.size(); i++) {
             tasks.set(i, tasks.get(i).schedule(random.nextInt()));
@@ -31,10 +35,12 @@ public class Schedule {
     }
 
     public Schedule cross(Schedule other) {
+        // TODO: cross this schedule with another schedule
         return null;
     }
 
     public int getFitness() {
+        // TODO: evaluate the fitness function for this schedule
         return 0;
     }
 }

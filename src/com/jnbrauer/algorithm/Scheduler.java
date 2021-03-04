@@ -14,10 +14,11 @@ public class Scheduler {
     }
 
     public void loadSchedule(String file) {
-
+        // TODO: load tasks, reserved times, etc. from file
     }
 
     public Schedule findBestSchedule() {
+        // TODO: Run genetic algorithm
         return null;
     }
 }
