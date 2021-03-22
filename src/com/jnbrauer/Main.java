@@ -14,7 +14,7 @@ public class Main {
      *
      * meet around 18th, some output (random schedules)
      *
-     * @param args
+     * @param args unused
      */
     public static void main(String[] args) {
         Scheduler scheduler = new Scheduler();
