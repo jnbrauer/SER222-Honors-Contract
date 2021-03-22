@@ -1,4 +1,8 @@
-package com.jnbrauer; import java.util.Random;
+package com.jnbrauer;
+
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.Random;
 
 /**
  * Uses a genetic algorithm to schedule a set of tasks.
@@ -29,17 +33,50 @@ public class GeneticScheduler {
 
     // INSTANCE VARIABLES //////////////////////////////////////////////////////////////////////////////////////////////
     // Highest possible time value
-    private int totalDuration;
+    private final int maxTime;
 
     // Task and reserved time data. These should never be modified.
     private final int nTasks;
     private final Task[] tasks;
     private final ReservedTime[] reservedTimes;
 
-    private Random random;
+    private final Random random;
 
-    public GeneticScheduler(int totalDuration, Task[] tasks, ReservedTime[] reservedTimes) {
-        this.totalDuration = totalDuration;
+    public static void main(String[] args) {
+        Task t1 = new Task("Test 1", 0, 20);
+        Task t2 = new Task("Test 2", 0, 10);
+        Task t3 = new Task("Test 3", 0, 60);
+        Task t4 = new Task("Test 4", 0, 120);
+        Task t5 = new Task("Test 5", 0, 40);
+        Task t6 = new Task("Test 6", 0, 300);
+        Task t7 = new Task("Test 7", 0, 5);
+        Task t8 = new Task("Test 8", 0, 200);
+        Task t9 = new Task("Test 9", 0, 36);
+        Task t10 = new Task("Test 10", 0, 67);
+
+        Task[] tasks = new Task[] {t1, t2, t3, t4, t5, t6, t7, t8, t9, t10};
+        ReservedTime[] reservedTimes = new ReservedTime[] {};
+
+        GeneticScheduler scheduler = new GeneticScheduler(1000, tasks, reservedTimes);
+        int[][] result = scheduler.run(1000);
+
+        // Rank final generation
+        Arrays.sort(result, Comparator.comparingInt(scheduler::fitness));
+        System.out.println("Best fitness: " + scheduler.fitness(result[0]));
+
+        int[] best = new int[scheduler.nTasks];
+        System.arraycopy(result[0], 0, best, 0, scheduler.nTasks);
+        for (int i = 0; i < scheduler.nTasks; i++) {
+            System.out.println("--------------------");
+            System.out.println("Task title: " + tasks[i].title);
+            System.out.println("Start time: " + best[i]);
+            System.out.println("End time: " + (best[i] + tasks[i].duration));
+            System.out.println("--------------------");
+        }
+    }
+
+    public GeneticScheduler(int maxTime, Task[] tasks, ReservedTime[] reservedTimes) {
+        this.maxTime = maxTime;
         this.nTasks = tasks.length;
         this.tasks = tasks;
         this.reservedTimes = reservedTimes;
@@ -47,11 +84,11 @@ public class GeneticScheduler {
         this.random = new Random(12);
     }
 
-    public void run() {
+    public int[][] run(int nGenerations) {
         int[][] currentGen = new int[GEN_SIZE][nTasks];
 
         // TODO: prevent duplicate individuals
-        for (int i = 0; i < nTasks; i++) {
+        for (int i = 0; i < GEN_SIZE; i++) {
             currentGen[i] = randomSchedule();
         }
 
@@ -71,23 +108,27 @@ public class GeneticScheduler {
             currentGen = nextGen;
 
             n++;
-        } while (n < 100); // TODO: detect when optimal solution has been found
+        } while (n < nGenerations); // TODO: detect when optimal solution has been found
+
+        return currentGen;
     }
 
     // Tournament selection
     private int[] select(int[][] gen) {
-        int[] a = gen[random.nextInt(GEN_SIZE)];
+        int[] best = gen[random.nextInt(GEN_SIZE)];
 
         for (int i = 1; i < SELECTION_T; i++) {
-            int[] b = gen[random.nextInt(GEN_SIZE)];
-            if (fitness(b) < fitness(a))
-                a = b;
+            int[] other = gen[random.nextInt(GEN_SIZE)];
+            // By our definition of the fitness function, lower values are better
+            if (fitness(other) < fitness(best))
+                best = other;
         }
 
-        return a;
+        return best;
     }
 
     // One-point crossover
+    // TODO: consider/test using two-point crossover
     private int[][] crossover(int[] p1, int[] p2) {
         int[] c1 = new int[nTasks];
         int[] c2 = new int[nTasks];
@@ -107,47 +148,60 @@ public class GeneticScheduler {
         return new int[][] {c1, c2};
     }
 
-    private int[] mutate(int[] a) {
-        int[] s = new int[nTasks];
+    private int[] mutate(int[] original) {
+        int[] mutated = new int[nTasks];
 
         for (int i = 0; i < nTasks; i++) {
-            s[i] = a[i];
+            mutated[i] = original[i];
             if (random.nextDouble() <= MUTATION_P) {
-                int n = 0;
+                int dt = 0;
                 do {
-                    n = (int) (random.nextGaussian() * Math.sqrt(MUTATION_VARIANCE));
-                } while (s[i] + n < 0 || s[i] + n > totalDuration);
-                s[i] = s[i] + n;
+                    dt = (int) (random.nextGaussian() * Math.sqrt(MUTATION_VARIANCE));
+                } while (mutated[i] + dt < 0 || mutated[i] + dt > maxTime);
+                mutated[i] = mutated[i] + dt;
             }
         }
 
-        return s;
+        return mutated;
     }
 
     // Calculate fitness function where a lower fitness value represents a better solution (0 is optimal)
-    private int fitness(int[] s) {
-        int f = 0;
+    private int fitness(int[] schedule) {
+        int fitness = 0;
 
         // Check for overlaps with other tasks
         int taskOverlap = 0;
         for (int i = 0; i < nTasks; i++) {
             for (int j = 0; j < nTasks; j++) {
-                if (i != j)
-                  taskOverlap += tasks[i].overlap(tasks[j]);
+                if (i != j) {
+                    // Calculate overlap between tasks i and j
+                    if (schedule[i] < schedule[j]) {
+                        taskOverlap += Math.max(0, (schedule[i] + tasks[i].duration) - schedule[j]);
+                    } else {
+                        taskOverlap += Math.max(0, (schedule[j] + tasks[j].duration) - schedule[i]);
+                    }
+                }
             }
         }
-        f += taskOverlap * TASK_OVERLAP_WEIGHT;
+        fitness += taskOverlap * TASK_OVERLAP_WEIGHT;
 
         // Check for overlaps with reserved times
+        int reservedOverlap = 0;
+        for (int i = 0; i < nTasks; i++) {
+            for (ReservedTime reserved : reservedTimes) {
+                reservedOverlap += Math.max(0, reserved.duration - ((schedule[i] - reserved.startOffset) % reserved.period));
+            }
+        }
+        fitness += reservedOverlap * RESERVED_TIME_OVERLAP_WEIGHT;
 
-        return f;
+        return fitness;
     }
 
     private int[] randomSchedule() {
         int[] s = new int[nTasks];
 
         for (int i = 0; i < nTasks; i++) {
-            s[i] = random.nextInt(totalDuration);
+            s[i] = random.nextInt(maxTime);
         }
 
         return s;
@@ -163,22 +217,12 @@ public class GeneticScheduler {
         private final String title;
         private final int priority;
 
-        private final int start;
         private final int duration;
 
-        public Task(String title, int priority, int start, int duration) {
+        public Task(String title, int priority, int duration) {
             this.title = title;
             this.priority = priority;
-            this.start = start;
             this.duration = duration;
-        }
-
-        public int overlap(Task other) {
-            if (this.start < other.start) {
-                return Math.max(0, (this.start + this.duration) - other.start);
-            } else {
-                return Math.max(0, (other.start + other.duration) - this.start);
-            }
         }
     }
 
@@ -198,10 +242,5 @@ public class GeneticScheduler {
             this.duration = duration;
             this.period = period;
         }
-
-        public int overlap(Task t) {
-            return Math.max(0, duration - ((t.start - startOffset) % period));
-        }
     }
-
 }
