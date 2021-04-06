@@ -22,7 +22,7 @@ public class GeneticScheduler {
     // Probability of mutation occurring
     private final double MUTATION_P = 0.5;
     // Mutation normal distribution variance
-    private final double MUTATION_VARIANCE = 3600;
+    private final double MUTATION_VARIANCE = 60;
     // Selection tournament size
     private final int SELECTION_T = 2;
 
@@ -58,7 +58,7 @@ public class GeneticScheduler {
         ReservedTime[] reservedTimes = new ReservedTime[] {};
 
         GeneticScheduler scheduler = new GeneticScheduler(1000, tasks, reservedTimes);
-        int[][] result = scheduler.run(1000);
+        int[][] result = scheduler.run(50);
 
         // Rank final generation
         Arrays.sort(result, Comparator.comparingInt(scheduler::fitness));
@@ -136,12 +136,12 @@ public class GeneticScheduler {
         int crossPoint = random.nextInt(nTasks);
 
         for (int i = 0; i < nTasks; i++) {
-            if (i < crossPoint) {
-                c1[i] = p1[i];
-                c2[i] = p2[i];
-            } else {
+            if (i >= crossPoint) {
                 c1[i] = p2[i];
                 c2[i] = p1[i];
+            } else {
+                c1[i] = p1[i];
+                c2[i] = p2[i];
             }
         }
 
@@ -171,16 +171,15 @@ public class GeneticScheduler {
 
         // Check for overlaps with other tasks
         int taskOverlap = 0;
-        for (int i = 0; i < nTasks; i++) {
-            for (int j = 0; j < nTasks; j++) {
-                if (i != j) {
-                    // Calculate overlap between tasks i and j
-                    if (schedule[i] < schedule[j]) {
-                        taskOverlap += Math.max(0, (schedule[i] + tasks[i].duration) - schedule[j]);
-                    } else {
-                        taskOverlap += Math.max(0, (schedule[j] + tasks[j].duration) - schedule[i]);
-                    }
-                }
+        for (int i = 0; i < nTasks - 1; i++) {
+            for (int j = i + 1; j < nTasks; j++) {
+                // Calculate overlap between tasks i and j
+                /*if (schedule[i] < schedule[j]) {
+                    taskOverlap += Math.max(0, (schedule[i] + tasks[i].duration) - schedule[j]);
+                } else {
+                    taskOverlap += Math.max(0, (schedule[j] + tasks[j].duration) - schedule[i]);
+                }*/
+                taskOverlap += Math.max(0, Math.min(schedule[i] + tasks[i].duration, schedule[j] + tasks[j].duration) - Math.max(schedule[i], schedule[j]));
             }
         }
         fitness += taskOverlap * TASK_OVERLAP_WEIGHT;
@@ -214,10 +213,10 @@ public class GeneticScheduler {
      * Task data
      */
     public static class Task {
-        private final String title;
-        private final int priority;
+        public final String title;
+        public final int priority;
 
-        private final int duration;
+        public final int duration;
 
         public Task(String title, int priority, int duration) {
             this.title = title;
@@ -226,21 +225,50 @@ public class GeneticScheduler {
         }
     }
 
+    public static class ScheduledTask extends Task implements Comparable<ScheduledTask> {
+        public final int startTime;
+
+        public ScheduledTask(String title, int priority, int duration, int startTime) {
+            super(title, priority, duration);
+            this.startTime = startTime;
+        }
+
+        public ScheduledTask(Task task, int startTime) {
+            super(task.title, task.priority, task.duration);
+            this.startTime = startTime;
+        }
+
+        @Override
+        public int compareTo(ScheduledTask other) {
+            return Integer.compare(this.startTime, other.startTime);
+        }
+    }
+
     /**
      * Reserved time data
      */
     public static class ReservedTime {
-        private final String title;
+        public final String title;
 
-        private final int startOffset;
-        private final int duration;
-        private final int period;
+        public final int startOffset;
+        public final int duration;
+        public final int period;
 
         public ReservedTime(String title, int startOffset, int duration, int period) {
             this.title = title;
             this.startOffset = startOffset;
             this.duration = duration;
             this.period = period;
+        }
+    }
+
+    public static class Schedule {
+        private ScheduledTask[] tasks;
+        private ReservedTime[] reservedTimes;
+
+        public Schedule(ScheduledTask[] tasks, ReservedTime[] reservedTimes) {
+            this.tasks = tasks;
+            this.reservedTimes = reservedTimes;
         }
     }
 }
