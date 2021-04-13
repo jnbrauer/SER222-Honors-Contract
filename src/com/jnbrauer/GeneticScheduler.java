@@ -1,13 +1,16 @@
 package com.jnbrauer;
 
-import java.util.Arrays;
-import java.util.Comparator;
+import com.jnbrauer.data.Interval;
+import com.jnbrauer.data.IntervalTree;
+import com.jnbrauer.data.ReservedTime;
+import com.jnbrauer.data.Task;
+
 import java.util.Random;
 
 /**
  * Uses a genetic algorithm to schedule a set of tasks.
  *
- * All times are represented as time offsets in seconds. This class always treats 0 as the base time; the caller must
+ * All times are represented as time offsets in minutes. This class always treats 0 as the base time; the caller must
  * handle converting times to have the desired start time offset.
  *
  * Individual schedules are represented as integer arrays where each value represent the start time of the task at the
@@ -16,13 +19,12 @@ import java.util.Random;
 public class GeneticScheduler {
     // CONSTANTS ///////////////////////////////////////////////////////////////////////////////////////////////////////
     // Number of individuals in each generation
-    // TODO: make parameter?
     private final int GEN_SIZE = 50;
 
     // Probability of mutation occurring
     private final double MUTATION_P = 0.5;
-    // Mutation normal distribution variance
-    private final double MUTATION_VARIANCE = 60;
+    // Mutation normal distribution standard deviation
+    private final double MUTATION_STDDEV = 10;
     // Selection tournament size
     private final int SELECTION_T = 2;
 
@@ -35,55 +37,25 @@ public class GeneticScheduler {
     // Highest possible time value
     private final int maxTime;
 
-    // Task and reserved time data. These should never be modified.
+    // Task and reserved time data. These should never be modified after initialization.
     private final int nTasks;
     private final Task[] tasks;
     private final ReservedTime[] reservedTimes;
+    private final IntervalTree reservedIntervals;
 
     private final Random random;
-
-    public static void main(String[] args) {
-        Task t1 = new Task("Test 1", 0, 20);
-        Task t2 = new Task("Test 2", 0, 10);
-        Task t3 = new Task("Test 3", 0, 60);
-        Task t4 = new Task("Test 4", 0, 120);
-        Task t5 = new Task("Test 5", 0, 40);
-        Task t6 = new Task("Test 6", 0, 300);
-        Task t7 = new Task("Test 7", 0, 5);
-        Task t8 = new Task("Test 8", 0, 200);
-        Task t9 = new Task("Test 9", 0, 36);
-        Task t10 = new Task("Test 10", 0, 67);
-
-        Task[] tasks = new Task[] {t1, t2, t3, t4, t5, t6, t7, t8, t9, t10};
-        ReservedTime[] reservedTimes = new ReservedTime[] {};
-
-        GeneticScheduler scheduler = new GeneticScheduler(1000, tasks, reservedTimes);
-        int[][] result = scheduler.run(50);
-
-        // Rank final generation
-        Arrays.sort(result, Comparator.comparingInt(scheduler::fitness));
-        System.out.println("Best fitness: " + scheduler.fitness(result[0]));
-
-        int[] best = new int[scheduler.nTasks];
-        System.arraycopy(result[0], 0, best, 0, scheduler.nTasks);
-        for (int i = 0; i < scheduler.nTasks; i++) {
-            System.out.println("--------------------");
-            System.out.println("Task title: " + tasks[i].title);
-            System.out.println("Start time: " + best[i]);
-            System.out.println("End time: " + (best[i] + tasks[i].duration));
-            System.out.println("--------------------");
-        }
-    }
 
     public GeneticScheduler(int maxTime, Task[] tasks, ReservedTime[] reservedTimes) {
         this.maxTime = maxTime;
         this.nTasks = tasks.length;
         this.tasks = tasks;
         this.reservedTimes = reservedTimes;
+        this.reservedIntervals = new IntervalTree(reservedTimes, maxTime);
 
         this.random = new Random(12);
     }
 
+    // Run the given number of generations of the genetic algorithm and return the final gneration
     public int[][] run(int nGenerations) {
         int[][] currentGen = new int[GEN_SIZE][nTasks];
 
@@ -96,11 +68,14 @@ public class GeneticScheduler {
         do {
             int[][] nextGen = new int[GEN_SIZE][nTasks];
             for (int i = 0; i < GEN_SIZE / 2; i++) {
+                // Select two parents
                 int[] p1 = select(currentGen);
                 int[] p2 = select(currentGen);
 
+                // Cross them to get two children
                 int[][] children = crossover(p1, p2);
 
+                // Mutate children and add to next generation
                 nextGen[i*2] = mutate(children[0]);
                 nextGen[i*2 + 1] = mutate(children[1]);
             }
@@ -114,6 +89,7 @@ public class GeneticScheduler {
     }
 
     // Tournament selection
+    // Choose SELECTION_T random individuals and pick the best from those
     private int[] select(int[][] gen) {
         int[] best = gen[random.nextInt(GEN_SIZE)];
 
@@ -136,6 +112,7 @@ public class GeneticScheduler {
         int crossPoint = random.nextInt(nTasks);
 
         for (int i = 0; i < nTasks; i++) {
+            // Swap all values after the cross point
             if (i >= crossPoint) {
                 c1[i] = p2[i];
                 c2[i] = p1[i];
@@ -153,11 +130,13 @@ public class GeneticScheduler {
 
         for (int i = 0; i < nTasks; i++) {
             mutated[i] = original[i];
+            // MUTATION_P chance of a mutation occurring
             if (random.nextDouble() <= MUTATION_P) {
                 int dt = 0;
                 do {
-                    dt = (int) (random.nextGaussian() * Math.sqrt(MUTATION_VARIANCE));
-                } while (mutated[i] + dt < 0 || mutated[i] + dt > maxTime);
+                    // Normally distributed mutation with given standard deviation
+                    dt = (int) (random.nextGaussian() * MUTATION_STDDEV);
+                } while (mutated[i] + dt < 0 || mutated[i] + dt > maxTime); // Loop until valid mutation is found
                 mutated[i] = mutated[i] + dt;
             }
         }
@@ -166,20 +145,17 @@ public class GeneticScheduler {
     }
 
     // Calculate fitness function where a lower fitness value represents a better solution (0 is optimal)
-    private int fitness(int[] schedule) {
+    public int fitness(int[] schedule) {
         int fitness = 0;
 
         // Check for overlaps with other tasks
         int taskOverlap = 0;
         for (int i = 0; i < nTasks - 1; i++) {
+            Interval t1 = new Interval(schedule[i], schedule[i] + tasks[i].getDuration());
             for (int j = i + 1; j < nTasks; j++) {
                 // Calculate overlap between tasks i and j
-                /*if (schedule[i] < schedule[j]) {
-                    taskOverlap += Math.max(0, (schedule[i] + tasks[i].duration) - schedule[j]);
-                } else {
-                    taskOverlap += Math.max(0, (schedule[j] + tasks[j].duration) - schedule[i]);
-                }*/
-                taskOverlap += Math.max(0, Math.min(schedule[i] + tasks[i].duration, schedule[j] + tasks[j].duration) - Math.max(schedule[i], schedule[j]));
+                Interval t2 = new Interval(schedule[j], schedule[j] + tasks[j].getDuration());
+                taskOverlap += t1.overlap(t2);
             }
         }
         fitness += taskOverlap * TASK_OVERLAP_WEIGHT;
@@ -187,15 +163,14 @@ public class GeneticScheduler {
         // Check for overlaps with reserved times
         int reservedOverlap = 0;
         for (int i = 0; i < nTasks; i++) {
-            for (ReservedTime reserved : reservedTimes) {
-                reservedOverlap += Math.max(0, reserved.duration - ((schedule[i] - reserved.startOffset) % reserved.period));
-            }
+            reservedOverlap += reservedIntervals.getOverlap(new Interval(schedule[i], schedule[i] + tasks[i].getDuration()));
         }
         fitness += reservedOverlap * RESERVED_TIME_OVERLAP_WEIGHT;
 
         return fitness;
     }
 
+    // Generate a schedule with random start times
     private int[] randomSchedule() {
         int[] s = new int[nTasks];
 
@@ -204,71 +179,5 @@ public class GeneticScheduler {
         }
 
         return s;
-    }
-
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // DATA STRUCTURES /////////////////////////////////////////////////////////////////////////////////////////////////
-    ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /**
-     * Task data
-     */
-    public static class Task {
-        public final String title;
-        public final int priority;
-
-        public final int duration;
-
-        public Task(String title, int priority, int duration) {
-            this.title = title;
-            this.priority = priority;
-            this.duration = duration;
-        }
-    }
-
-    public static class ScheduledTask extends Task implements Comparable<ScheduledTask> {
-        public final int startTime;
-
-        public ScheduledTask(String title, int priority, int duration, int startTime) {
-            super(title, priority, duration);
-            this.startTime = startTime;
-        }
-
-        public ScheduledTask(Task task, int startTime) {
-            super(task.title, task.priority, task.duration);
-            this.startTime = startTime;
-        }
-
-        @Override
-        public int compareTo(ScheduledTask other) {
-            return Integer.compare(this.startTime, other.startTime);
-        }
-    }
-
-    /**
-     * Reserved time data
-     */
-    public static class ReservedTime {
-        public final String title;
-
-        public final int startOffset;
-        public final int duration;
-        public final int period;
-
-        public ReservedTime(String title, int startOffset, int duration, int period) {
-            this.title = title;
-            this.startOffset = startOffset;
-            this.duration = duration;
-            this.period = period;
-        }
-    }
-
-    public static class Schedule {
-        private ScheduledTask[] tasks;
-        private ReservedTime[] reservedTimes;
-
-        public Schedule(ScheduledTask[] tasks, ReservedTime[] reservedTimes) {
-            this.tasks = tasks;
-            this.reservedTimes = reservedTimes;
-        }
     }
 }

@@ -1,33 +1,52 @@
 package com.jnbrauer.data;
 
-public class ReservedTime extends TimeBlock {
-    private final String name;
-    private final int duration;
-    private final int startTime;
-    private final int priority;
+import java.util.LinkedList;
+import java.util.List;
 
-    public ReservedTime(String name, int duration, int startTime, int priority) {
-        this.name = name;
+public class ReservedTime {
+    private final String title;
+
+    private final int startOffset;
+    private final int duration;
+    private final int period;
+
+    public ReservedTime(String title, int startOffset, int duration, int period) {
+        this.title = title;
+        this.startOffset = startOffset;
         this.duration = duration;
-        this.startTime = startTime;
-        this.priority = priority;
+        this.period = period;
     }
 
-    @Override
+    public String getTitle() {
+        return title;
+    }
+
+    public int getStartOffset() {
+        return startOffset;
+    }
+
     public int getDuration() {
         return duration;
     }
 
-    @Override
-    public int getStartTime() {
-        return startTime;
+    public int getPeriod() {
+        return period;
     }
 
-    public int getPriority() {
-        return priority;
+    public int nIntervals(int endTime) {
+        return ((endTime - startOffset) / period) + 1;
     }
 
-    public String getName() {
-        return name;
+    // Construct a list containing all the intervals this recurring reserved time represents
+    public List<Interval> intervals(int endTime) {
+        int n = this.nIntervals(endTime);
+        List<Interval> intervals = new LinkedList<>();
+
+        for (int i = 0; i < n; i++) {
+            int start = startOffset + (i * period);
+            intervals.add(new Interval(start, start + duration));
+        }
+
+        return intervals;
     }
 }
