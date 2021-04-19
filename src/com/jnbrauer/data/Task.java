@@ -23,4 +23,8 @@ public class Task {
     public int getDuration() {
         return duration;
     }
+
+    public Interval getInterval(int start) {
+        return new Interval(title, start, start+duration);
+    }
 }

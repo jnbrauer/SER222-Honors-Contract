@@ -14,9 +14,13 @@ public class IntervalTree {
         Interval[] intervalsStart;
         Interval[] intervalsEnd;
 
+        int treeSize;
+        int nodeSize;
+
         public Node(int min, int max, Interval[] intervals, int n) {
             // Find center point
             this.center = (min + max) / 2;
+            this.treeSize = n;
 
             Interval[] centered = new Interval[n];
             Interval[] left = new Interval[n];
@@ -26,7 +30,7 @@ public class IntervalTree {
             // Loop until either the end of the list is reached or a null is found
             for (int i = 0; i < n && intervals[i] != null; i++) {
                 Interval interval = intervals[i];
-                if (this.center > interval.getStart() && this.center < interval.getEnd()) {
+                if (this.center >= interval.getStart() && this.center <= interval.getEnd()) {
                     // Add interval to centered list if it overlaps this node's center point
                     centered[c++] = interval;
                 } else if (interval.getEnd() < this.center) {
@@ -41,6 +45,7 @@ public class IntervalTree {
             // Create and sort arrays for this node's interval sorted by start time and end time
             this.intervalsStart = new Interval[c];
             this.intervalsEnd = new Interval[c];
+            this.nodeSize = c;
 
             System.arraycopy(centered, 0, this.intervalsStart, 0, c);
             System.arraycopy(centered, 0, this.intervalsEnd, 0, c);
@@ -105,5 +110,35 @@ public class IntervalTree {
             // Check overlap with both right and left
             return getOverlap(node.left, interval, n) + getOverlap(node.right, interval, n);
         }
+    }
+
+    public Interval[] getIntervals() {
+        Interval[] intervals = new Interval[getSize()];
+
+        getIntervals(root, intervals, 0, getSize());
+
+        return intervals;
+    }
+
+    public void getIntervals(Node node, Interval[] array, int start, int end) {
+        int div1 = start;
+        if (node.left != null) {
+            div1 = start + node.left.treeSize;
+            getIntervals(node.left, array, start, div1);
+        }
+
+        int div2 = div1 + node.nodeSize;
+
+        for (int i = div1; i < div2; i++) {
+            array[i] = node.intervalsStart[i - div1];
+        }
+
+        if (node.right != null) {
+            getIntervals(node.right, array, div2, end);
+        }
+    }
+
+    public int getSize() {
+        return root.treeSize;
     }
 }

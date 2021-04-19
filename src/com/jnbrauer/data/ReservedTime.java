@@ -44,7 +44,7 @@ public class ReservedTime {
 
         for (int i = 0; i < n; i++) {
             int start = startOffset + (i * period);
-            intervals.add(new Interval(start, start + duration));
+            intervals.add(new Interval(title, start, start + duration));
         }
 
         return intervals;
