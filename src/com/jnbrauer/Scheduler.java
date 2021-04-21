@@ -18,24 +18,24 @@ import java.util.Random;
  * Individual schedules are represented as integer arrays where each value represent the start time of the task at the
  * corresponding index in the provided task array.
  */
-public class GeneticScheduler {
+public class Scheduler {
     // CONSTANTS ///////////////////////////////////////////////////////////////////////////////////////////////////////
     // Number of individuals in each generation
-    private final int GEN_SIZE = 50;
+    private static final int GEN_SIZE = 50;
 
     // Probability of mutation occurring
-    private final double MUTATION_P = 0.3;
+    private static final double MUTATION_P = 0.3;
     // Mutation normal distribution standard deviation
-    private final double MUTATION_STDDEV = 60;
+    private static final double MUTATION_STDDEV = 60;
     // Selection tournament size
-    private final int SELECTION_T = 2;
+    private static final int SELECTION_T = 2;
 
     // Weight of task overlap in fitness function
-    private final double TASK_OVERLAP_WEIGHT = 1;
+    private static final double TASK_OVERLAP_WEIGHT = 1;
     // Weight of reserved time overlap in fitness function
-    private final double RESERVED_TIME_OVERLAP_WEIGHT = 0.3;
+    private static final double RESERVED_TIME_OVERLAP_WEIGHT = 0.3;
 
-    private final double PRIORITY_WEIGHT = 100;
+    private static final double PRIORITY_WEIGHT = 100;
 
     // INSTANCE VARIABLES //////////////////////////////////////////////////////////////////////////////////////////////
     // Highest possible time value
@@ -49,7 +49,7 @@ public class GeneticScheduler {
 
     private final Random random;
 
-    public GeneticScheduler(int maxTime, Task[] tasks, ReservedTime[] reservedTimes) {
+    public Scheduler(int maxTime, Task[] tasks, ReservedTime[] reservedTimes) {
         this.maxTime = maxTime;
         this.nTasks = tasks.length;
         this.tasks = tasks;
@@ -61,11 +61,12 @@ public class GeneticScheduler {
 
     // Run the given number of generations of the genetic algorithm and return the final generation
     public int[][] run(int nGenerations) {
+        // Create CSV writer and construct header
         CSVWriter csv = new CSVWriter("output.csv");
         String[] headerLine = new String[nTasks + 2];
         headerLine[0] = "BestFitness";
         headerLine[1] = "AvgFitness";
-        for (int i = 0; i < nTasks; i++) headerLine[i + 2] = "T" + i;
+        for (int i = 0; i < nTasks; i++) headerLine[i + 2] = tasks[i].getTitle();
         csv.addLine(headerLine);
 
         int[][] currentGen = new int[GEN_SIZE][nTasks];
@@ -77,9 +78,11 @@ public class GeneticScheduler {
 
         int n = 0;
         do {
+            // Calculate all fitnesses
             int[] fitnesses = new int[GEN_SIZE];
             for (int i = 0; i < GEN_SIZE; i++) fitnesses[i] = fitness(currentGen[i]);
 
+            // Find best fitness
             int bestFitness = fitnesses[0];
             int bestIndex = 0;
             for (int i = 1; i < GEN_SIZE; i++) {
@@ -89,17 +92,19 @@ public class GeneticScheduler {
                 }
             }
 
+            // Calculate average fitness
             int fitnessSum = 0;
             for (int i = 0; i < GEN_SIZE; i++) fitnessSum += fitnesses[i];
-
             double avgFitness = (double) fitnessSum / GEN_SIZE;
 
+            // Write fitness statistics and most fit schedule to log file
             String[] newLine = new String[nTasks + 2];
             newLine[0] = String.valueOf(bestFitness);
             newLine[1] = String.valueOf(avgFitness);
             for (int i = 0; i < nTasks; i++) newLine[i + 2] = String.valueOf(currentGen[bestIndex][i]);
             csv.addLine(newLine);
 
+            // Generate next generation
             int[][] nextGen = new int[GEN_SIZE][nTasks];
             for (int i = 0; i < GEN_SIZE / 2; i++) {
                 // Select two parents
@@ -144,8 +149,8 @@ public class GeneticScheduler {
         return best;
     }
 
-    // One-point crossover
-    // TODO: consider/test using two-point crossover
+    // Two-point crossover
+    // Two-point seems to provide better performance when priorities are considered
     private int[][] crossover(int[] p1, int[] p2) {
         int[] c1 = new int[nTasks];
         int[] c2 = new int[nTasks];

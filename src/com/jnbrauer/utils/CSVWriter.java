@@ -6,6 +6,7 @@ import java.io.PrintWriter;
 import java.util.LinkedList;
 import java.util.List;
 
+// Credit: https://www.baeldung.com/java-csv
 public class CSVWriter {
     private final String filename;
     private final List<String[]> lines;
