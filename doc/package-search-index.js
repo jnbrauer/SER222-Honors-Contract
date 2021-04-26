@@ -1,0 +1,1 @@
+packageSearchIndex = [{"l":"All Packages","url":"allpackages-index.html"},{"l":"com.jnbrauer"},{"l":"com.jnbrauer.data"},{"l":"com.jnbrauer.utils"}]

@@ -17,6 +17,8 @@ import java.util.Random;
  *
  * Individual schedules are represented as integer arrays where each value represent the start time of the task at the
  * corresponding index in the provided task array.
+ *
+ * @author Jude Brauer
  */
 public class Scheduler {
     // CONSTANTS ///////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -49,6 +51,12 @@ public class Scheduler {
 
     private final Random random;
 
+    /**
+     * Initialize the scheduler with the given tasks and reserved times.
+     * @param maxTime max amount of time in which all tasks must be completed.
+     * @param tasks tasks to schedule
+     * @param reservedTimes reserved times
+     */
     public Scheduler(int maxTime, Task[] tasks, ReservedTime[] reservedTimes) {
         this.maxTime = maxTime;
         this.nTasks = tasks.length;
@@ -59,7 +67,11 @@ public class Scheduler {
         this.random = new Random(12);
     }
 
-    // Run the given number of generations of the genetic algorithm and return the final generation
+    /**
+     * Run the given number of generations of the genetic algorithm and return the final generation.
+     *
+     * @param nGenerations number of generations to run
+     */
     public int[][] run(int nGenerations) {
         // Create CSV writer and construct header
         CSVWriter csv = new CSVWriter("output.csv");
@@ -133,9 +145,14 @@ public class Scheduler {
         return currentGen;
     }
 
-    // Tournament selection
-    // Choose SELECTION_T random individuals and pick the best from those
-    // Returns the index of the selected individual based on an array of fitnesses
+    /**
+     * Tournament selection
+     * Choose SELECTION_T random individuals and pick the best from those
+     * Returns the index of the selected individual based on an array of fitnesses
+     *
+     * @param fitnesses array of fitnesses for the schedule on which selection is being performed
+     * @return the index of the selected schedule
+     */
     private int select(int[] fitnesses) {
         int best = random.nextInt(GEN_SIZE);
 
@@ -149,15 +166,22 @@ public class Scheduler {
         return best;
     }
 
-    // Two-point crossover
-    // Two-point seems to provide better performance when priorities are considered
+    /**
+     * Perform two-point crossover on two parent schedules and return the two generated children.
+     *
+     * @param p1 first parent
+     * @param p2 second parent
+     * @return two generated child schedules
+     */
     private int[][] crossover(int[] p1, int[] p2) {
         int[] c1 = new int[nTasks];
         int[] c2 = new int[nTasks];
 
+        // Select cross point
         int crossPoint1 = random.nextInt(nTasks);
         int crossPoint2 = random.nextInt(nTasks - crossPoint1) + crossPoint1;
 
+        // Do crossover
         for (int i = 0; i < nTasks; i++) {
             // Swap all values after the cross point
             if (i >= crossPoint1 && i <= crossPoint2) {
@@ -172,6 +196,13 @@ public class Scheduler {
         return new int[][] {c1, c2};
     }
 
+    /**
+     * Perform mutation on a schedule. Mutations are normally distributed with standard deviation MUTATION_STDDEV and
+     * occur on each value with MUTATION_P probability.
+     *
+     * @param original schedule to mutate
+     * @return mutated schedule
+     */
     private int[] mutate(int[] original) {
         int[] mutated = new int[nTasks];
 
@@ -191,7 +222,18 @@ public class Scheduler {
         return mutated;
     }
 
-    // Calculate fitness function where a lower fitness value represents a better solution (0 is optimal)
+    /**
+     * Calculate fitness function where a lower fitness value represents a better solution (0 is optimal).
+     *
+     * The fitness of generated schedules is evaluated by several factors. Firstly, the algorithm will attempt to minimize time
+     * overlaps both between tasks and between tasks and reserved times. Notably, the two categories are evaluated separately
+     * and given different weights in the fitness function: currently, overlap between tasks is weighted more heavily than
+     * overlap between tasks and reserved times. Additionally, the fitness of a schedule also considers whether or not tasks
+     * are completed in their proper order as defined by their priorities.
+     *
+     * @param schedule schedule to calculate fitness of
+     * @return fitness of schedule where a lower value represents a more fit schedule.
+     */
     public int fitness(int[] schedule) {
         int fitness = 0;
 
@@ -206,6 +248,7 @@ public class Scheduler {
                 // Calculate overlap between tasks i and j
                 taskOverlap += intervals[i].overlap(intervals[j]);
 
+                // Look for out of order tasks as defined by priority
                 if ((schedule[i] < schedule[j] && tasks[i].getPriority() > tasks[j].getPriority())
                         || (schedule[i] > schedule[j] && tasks[i].getPriority() < tasks[j].getPriority())) {
                     priorityInversions += Math.abs(tasks[i].getPriority() - tasks[j].getPriority());
@@ -225,7 +268,11 @@ public class Scheduler {
         return fitness;
     }
 
-    // Generate a schedule with random start times
+    /**
+     * Generate a schedule with random start times.
+     *
+     * @return random schedule
+     */
     private int[] randomSchedule() {
         int[] s = new int[nTasks];
 
@@ -236,6 +283,12 @@ public class Scheduler {
         return s;
     }
 
+    /**
+     * Get the task intervals for a schedule.
+     *
+     * @param schedule schedule to generate intervals for
+     * @return array of intervals
+     */
     private Interval[] genTaskIntervals(int[] schedule) {
         Interval[] intervals = new Interval[nTasks];
 
@@ -246,6 +299,12 @@ public class Scheduler {
         return intervals;
     }
 
+    /**
+     * Get the task and reserved time intervals for a schedule.
+     *
+     * @param schedule schedule to generate intervals for
+     * @return array of intervals
+     */
     public Interval[] genAllIntervals(int[] schedule) {
         Interval[] intervals = new Interval[nTasks + reservedIntervals.getSize()];
 

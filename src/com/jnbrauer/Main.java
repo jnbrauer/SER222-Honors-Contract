@@ -7,6 +7,12 @@ import com.jnbrauer.data.Task;
 import java.util.Arrays;
 import java.util.Comparator;
 
+/**
+ * Example usage of the scheduler. Runs the scheduler on a set of predefined tasks and reserved times and prints the
+ * output to the console.
+ *
+ * @author Jude Brauer
+ */
 public class Main {
     public static void main(String[] args) {
         Task[] tasks = {
